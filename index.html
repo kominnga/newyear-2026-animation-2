@@ -2,20 +2,21 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>NEW YEAR 2026 — FULL MAX EFFECT</title>
+<title>NEW YEAR 2026 — ULTIMATE 3D LIGHT SHOW</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;perspective:4000px;font-family:"Yu Mincho","Hiragino Mincho ProN",serif;}
-#bg{position:absolute; inset:0; background:#000; transition:filter .2s ease, transform .2s ease;}
-#flash{position:absolute; inset:0; background:#dfe9ff; opacity:0; pointer-events:none; mix-blend-mode:screen;}
-#vignette{position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 0 400px rgba(0,0,0,.95);}
-#stage{position:absolute; inset:0; transform-style:preserve-3d;}
-.num{position:absolute; top:50%; left:50%; font-size:150px; letter-spacing:.2em;color:#f8fbff; transform-style:preserve-3d; -webkit-text-stroke:1.5px rgba(200,220,255,.55); text-shadow:0 0 30px rgba(120,160,255,.8),0 0 90px rgba(80,120,255,.6),0 50px 120px rgba(0,0,0,.95);}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;perspective:5000px;font-family:"Yu Mincho","Hiragino Mincho ProN",serif;}
+#bg{position:absolute;inset:0;background:radial-gradient(circle at center,#0c0c20 0%,#010103 60%,#000 100%);transition:filter .2s ease, transform .2s ease;}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;mix-blend-mode:screen;}
+#stage{position:absolute;inset:0;transform-style:preserve-3d;}
+.num{position:absolute;top:50%;left:50%;font-size:150px;letter-spacing:.2em;color:#f8fbff;transform-style:preserve-3d;
+  -webkit-text-stroke:1.5px rgba(200,220,255,.55);
+  text-shadow:0 0 30px rgba(120,160,255,.8),0 0 90px rgba(80,120,255,.6),0 50px 120px rgba(0,0,0,.95);}
 .red{color:#ff6a6a;opacity:.45;}
 .blue{color:#6ab6ff;opacity:.45;}
-#message{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:48px; letter-spacing:.15em; color:#f8fbff; opacity:0; white-space:nowrap;}
-.char{display:inline-block; transform-style:preserve-3d;}
-canvas{position:absolute; inset:0; pointer-events:none; z-index:10;}
+#message{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:64px;letter-spacing:.15em;color:#f8fbff;opacity:0;white-space:nowrap;}
+.char{display:inline-block;transform-style:preserve-3d;}
+canvas{position:absolute;inset:0;pointer-events:none;z-index:10;}
 </style>
 </head>
 <body>
@@ -28,7 +29,6 @@ canvas{position:absolute; inset:0; pointer-events:none; z-index:10;}
   <div class="num blue">1</div>
 </div>
 <div id="message"></div>
-<div id="vignette"></div>
 
 <script>
 const nums=document.querySelectorAll(".num");
@@ -39,112 +39,81 @@ const canvas=document.getElementById("effects");
 const ctx=canvas.getContext("2d");
 let W=canvas.width=window.innerWidth,H=canvas.height=window.innerHeight;
 
-// ========== physics & state ==========
-let y=-360, vy=0, z=0, vz=0, rotZ=0, rotZVel=0, shakePower=0, frame=0;
-let finished=false, alignFront=false, coreDrop=false, ended=false, prevVal=0;
+/* state */
+let frame=0,y=-360,vy=0,z=0,vz=0,rotZ=0,rotZVel=0,shakePower=0,hShake=0;
+let finished=false,alignFront=false,coreDrop=false,prevVal=0;
 const max=2026;
-let messageExploded=false, particles=[], lightRays=[], textParticles=[], outlineRays=[], bgParticles=[];
-let showBlessEffect=false;
-let cameraShakeX=0, cameraShakeY=0;
-let finalRotateY=0;
+let messageExploded=false;
+let particles=[],lightRays=[],textParticles=[],outlineRays=[],petals=[];
+let sunsetProgress=0;
 
-// ========== helpers ==========
+/* flash & bg helpers */
 const blueFlash=()=>{flash.style.opacity=1; setTimeout(()=>flash.style.opacity=0,120);};
-const distortBG=()=>{bg.classList.add("distort"); setTimeout(()=>bg.classList.remove("distort"),180);};
+const distortBG=()=>{bg.classList.add("bg-distort"); setTimeout(()=>bg.classList.remove("bg-distort"),180);};
 
-// ========== Particle Classes ==========
+/* particle classes */
 class Particle{constructor(x,y,z,vx,vy,vz,color,size){this.x=x;this.y=y;this.z=z;this.vx=vx;this.vy=vy;this.vz=vz;this.color=color;this.size=size;this.alpha=1;}
-update(){this.vy+=0.7; this.vx*=0.98; this.vz*=0.98; this.x+=this.vx; this.y+=this.vy; this.z+=this.vz; this.alpha*=0.96;}
-draw(ctx){ctx.globalAlpha=this.alpha; ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(this.x+W/2,this.y+H/2,this.size,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;}}
+update(){this.vy+=0.7;this.vx*=0.98;this.vz*=0.98;this.x+=this.vx;this.y+=this.vy;this.z+=this.vz;this.alpha*=0.96;}
+draw(ctx){ctx.globalAlpha=this.alpha;ctx.fillStyle=this.color;ctx.beginPath();ctx.arc(this.x+W/2,this.y+H/2,this.size,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}}
+class LightRay{constructor(x,y,dx,dy,color,lifetime){this.x=x;this.y=y;this.dx=dx;this.dy=dy;this.color=color;this.life=lifetime;this.maxLife=lifetime;}
+update(){this.x+=this.dx;this.y+=this.dy;this.dx*=0.92;this.dy*=0.92;this.dy+=0.2;this.life--;}
+draw(ctx){ctx.strokeStyle=`rgba(255,255,255,${this.life/this.maxLife})`;ctx.lineWidth=2;ctx.shadowBlur=12;ctx.shadowColor=this.color;ctx.beginPath();ctx.moveTo(this.x,this.y);ctx.lineTo(this.x-this.dx*2,this.y-this.dy*2);ctx.stroke();}}
+class OutlineRay{constructor(path,color,lifetime){this.path=path;this.color=color;this.life=lifetime;this.maxLife=lifetime;}
+update(){this.life--; if(this.life<0)this.life=0;}
+draw(ctx){ctx.strokeStyle=`rgba(255,255,255,${this.life/this.maxLife})`;ctx.lineWidth=3;ctx.shadowBlur=20;ctx.shadowColor=this.color;ctx.beginPath();for(let i=0;i<this.path.length-1;i++){ctx.moveTo(this.path[i][0]+W/2,this.path[i][1]+H/2);ctx.lineTo(this.path[i+1][0]+W/2,this.path[i+1][1]+H/2);}ctx.stroke();}}
+class PetalObj{constructor(){this.x=(Math.random()-.5)*W*1.5;this.y=-50;this.vx=(Math.random()-.5)*2;this.vy=Math.random()*3+2;this.rot=Math.random()*Math.PI*2;this.rots=(Math.random()-.5)*0.1;this.size=8+Math.random()*8;this.color=`hsl(${330+Math.random()*20},80%,70%)`;}
+update(){this.x+=this.vx;this.y+=this.vy;this.rot+=this.rots;}
+draw(ctx){ctx.save();ctx.translate(this.x+W/2,this.y+H/2);ctx.rotate(this.rot);ctx.fillStyle=this.color;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(this.size,0);ctx.lineTo(this.size/2,this.size/2);ctx.closePath();ctx.fill();ctx.restore();}}
 
-class LightRay{constructor(x,y,dx,dy,color,lifetime){this.x=x; this.y=y; this.dx=dx; this.dy=dy; this.color=color; this.life=lifetime; this.maxLife=lifetime;}
-update(){this.x+=this.dx; this.y+=this.dy; this.dx*=0.92; this.dy*=0.92; this.dy+=0.2; this.life--;}
-draw(ctx){ctx.strokeStyle=`rgba(255,255,255,${this.life/this.maxLife})`; ctx.lineWidth=2; ctx.shadowBlur=12; ctx.shadowColor=this.color; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x-this.dx*2,this.y-this.dy*2); ctx.stroke();}}
+/* message */
+function showMessage(){if(messageExploded)return;messageExploded=true;
+const text="あけましておめでとうございます";message.innerHTML="";
+[...text].forEach(c=>{const s=document.createElement("span");s.textContent=c;s.className="char";message.appendChild(s);});
+message.style.opacity=1;setTimeout(explodeMessage,2000);createOutlineRays(text);}
+function createOutlineRays(text){let xOff=-text.length*18;[...text].forEach((c,i)=>{let path=[];for(let j=0;j<6;j++){path.push([xOff+i*36+j*4,Math.sin(j*0.5)*28]);}outlineRays.push(new OutlineRay(path,`hsl(${Math.random()*360},100%,80%)`,100));});}
+function explodeMessage(){document.querySelectorAll(".char").forEach(c=>{const x=(Math.random()-.5)*1600,y=(Math.random()-.5)*1400,z=(Math.random()-.5)*1600,r=4000+Math.random()*4000;c.style.transition="transform 1.6s cubic-bezier(.2,.8,.2,1),opacity 1.6s";c.style.transform=`translate3d(${x}px,${y}px,${z}px) rotateZ(${r}deg)`;c.style.opacity=0;
+for(let i=0;i<100;i++){textParticles.push(new Particle(x,y,z,(Math.random()-.5)*80,(Math.random()-.5)*80,(Math.random()-.5)*80,'hsl('+Math.random()*360+',100%,70%)',5));}
+for(let i=0;i<30;i++){lightRays.push(new LightRay(x,y,(Math.random()-.5)*20,(Math.random()-.5)*20,'hsl('+Math.random()*360+',100%,90%)',50));}});
+setTimeout(()=>{setTimeout(showBless,1200);},1600);}
+function showBless(){message.innerHTML="祝";const c=document.querySelector(".char");if(c){c.style.transition="transform .8s ease";c.style.transform="translate3d(0,0,0) scale(2)";}
+for(let i=0;i<300;i++){particles.push(new Particle((Math.random()-.5)*1600,(Math.random()-.5)*1200,0,(Math.random()-.5)*80,(Math.random()-.5)*80,(Math.random()-.5)*80,'hsl('+Math.random()*360+',100%,60%)',7));lightRays.push(new LightRay((Math.random()-.5)*1600,(Math.random()-.5)*1200,(Math.random()-.5)*40,(Math.random()-.5)*40,'white',60));}
+for(let i=0;i<200;i++){petals.push(new PetalObj());}}
 
-class OutlineRay{constructor(path,color,lifetime){this.path=path; this.color=color; this.life=lifetime; this.maxLife=lifetime;}
-update(){this.life--; if(this.life<0) this.life=0;}
-draw(ctx){ctx.strokeStyle=`rgba(255,255,255,${this.life/this.maxLife})`; ctx.lineWidth=3; ctx.shadowBlur=20; ctx.shadowColor=this.color; ctx.beginPath();
-for(let i=0;i<this.path.length-1;i++){ctx.moveTo(this.path[i][0]+W/2,this.path[i][1]+H/2); ctx.lineTo(this.path[i+1][0]+W/2,this.path[i+1][1]+H/2);} ctx.stroke();}}
-
-// ========== Background Particle ==========
-class BGParticle{constructor(){this.x=(Math.random()-0.5)*W*2; this.y=(Math.random()-0.5)*H*2; this.vx=(Math.random()-0.5)*2; this.vy=(Math.random()-0.5)*2; this.alpha=Math.random()*0.4+0.2; this.size=Math.random()*2+1; this.color=`hsl(${Math.random()*360},50%,50%)`;}
-update(){this.x+=this.vx; this.y+=this.vy; if(this.x<-W) this.x=W; if(this.x>W) this.x=-W; if(this.y<-H)this.y=H; if(this.y>H)this.y=-H;}
-draw(ctx){ctx.globalAlpha=this.alpha; ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(this.x+W/2,this.y+H/2,this.size,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;}}
-for(let i=0;i<400;i++){bgParticles.push(new BGParticle());}
-
-// ========== Message & Explosion ==========
-function showMessage(){if(messageExploded) return; messageExploded=true;
-  const text="あけましておめでとうございます"; message.innerHTML="";
-  [...text].forEach(c=>{const s=document.createElement("span"); s.textContent=c; s.className="char"; message.appendChild(s);});
-  message.style.opacity=1; setTimeout(explodeMessage,2000); createOutlineRays(text);}
-
-function createOutlineRays(text){
-  let xOffset=-text.length*18; [...text].forEach((c,i)=>{let path=[]; for(let j=0;j<5;j++){path.push([xOffset+i*36+j*2,Math.sin(j*0.5)*20]);} outlineRays.push(new OutlineRay(path,'hsl('+Math.random()*360+',100%,80%)',80));});}
-
-function explodeMessage(){
-  document.querySelectorAll(".char").forEach(c=>{
-    const x=(Math.random()-.5)*1400; const y=(Math.random()-.5)*1200; const z=(Math.random()-.5)*1400;
-    const r=4000+Math.random()*4000;
-    c.style.transition="transform 1.5s cubic-bezier(.2,.8,.2,1), opacity 1.5s";
-    c.style.transform=`translate3d(${x}px,${y}px,${z}px) rotateZ(${r}deg)`; c.style.opacity=0;
-    for(let i=0;i<80;i++){textParticles.push(new Particle(x,y,z,(Math.random()-.5)*80,(Math.random()-.5)*80,(Math.random()-.5)*80,'hsl('+Math.random()*360+',100%,70%)',5));}
-    for(let i=0;i<20;i++){lightRays.push(new LightRay(x,y,(Math.random()-.5)*20,(Math.random()-.5)*20,'hsl('+Math.random()*360+',100%,90%)',45));}
-  });
-  setTimeout(()=>{setTimeout(showBless,1000);},1500);
-}
-
-function showBless(){
-  message.innerHTML="祝"; const c=document.querySelector(".char"); c.style.transition="transform .8s cubic-bezier(.2,.8,.2,1)"; c.style.transform="translate3d(0,0,0) scale(2)";
-  showBlessEffect=true;
-  for(let i=0;i<500;i++){
-    const color='hsl('+Math.random()*360+',100%,60%)';
-    particles.push(new Particle((Math.random()-.5)*1600,(Math.random()-.5)*1200,0,(Math.random()-.5)*80,(Math.random()-.5)*80,(Math.random()-.5)*80,color,7));
-    lightRays.push(new LightRay((Math.random()-.5)*1600,(Math.random()-.5)*1200,(Math.random()-.5)*40,(Math.random()-.5)*40,color,50));
-  }
-}
-
-// ========== Main Loop ==========
+/* main loop */
 function loop(){
-  frame++; const p=Math.min(1,frame/(60*35)); const val=Math.min(max,Math.floor(p*max));
-  nums.forEach(n=>n.textContent=val);
+frame++;const p=Math.min(1,frame/(60*25));const val=Math.min(max,Math.floor(p*max));nums.forEach(n=>n.textContent=val);
+if(val!==prevVal && val%100===0 && val<max){shakePower=50;hShake=30;blueFlash();distortBG();for(let i=0;i<100;i++){particles.push(new Particle((Math.random()-.5)*1600,(Math.random()-.5)*1200,-50+(Math.random()*120),(Math.random()-.5)*80,(Math.random()-.5)*80,(Math.random()-.5)*80,'hsl('+Math.random()*360+',100%,60%)',6));}}
+prevVal=val;
 
-  if(val!==prevVal && val%100===0 && val<max){
-    shakePower=40; blueFlash(); distortBG();
-    for(let i=0;i<100;i++){particles.push(new Particle((Math.random()-.5)*1600,(Math.random()-.5)*1200,-50+(Math.random()*120),(Math.random()-.5)*80,(Math.random()-.5)*80,(Math.random()-.5)*80,'hsl('+Math.random()*360+',100%,60%)',6));}
-  }
-  prevVal=val;
+/* sunset dramatic */
+sunsetProgress=Math.min(1,p);let r1=Math.floor(12+sunsetProgress*200),g1=Math.floor(15+sunsetProgress*100),b1=Math.floor(32+sunsetProgress*60);
+bg.style.background=`radial-gradient(circle at center,rgb(${r1},${g1},${b1}) 0%,#010103 60%,#000 100%)`;
 
-  bg.style.background=`radial-gradient(circle at center, hsl(${frame%360},60%,25%) 0%, #010103 60%, #000 100%)`;
+/* physics */
+vy+=5;y+=vy;if(y>0){y=0;vy*=-0.45;if(Math.abs(vy)<2)vy=0;}
+vz+=4;z+=vz;if(z>0){z=0;vz*=-0.35;}
+if(p>=1&&!finished){finished=true;rotZVel=80;blueFlash();setTimeout(()=>alignFront=true,600);}
+if(finished&&!alignFront){rotZ+=rotZVel;rotZVel*=.78;}
+if(alignFront){rotZ*=.78;if(Math.abs(rotZ)<0.5){rotZ=0;alignFront=false;setTimeout(()=>{coreDrop=true;vy=120;},250);}}
+if(coreDrop&&y>=0){y=0;vy=-500;z=-600;coreDrop=false;blueFlash();setTimeout(showMessage,800);}
 
-  vy+=5; y+=vy; if(y>0){y=0; vy*=-.45; if(Math.abs(vy)<2)vy=0;}
-  if(p>=1 && !finished){finished=true; rotZVel=60; vz=-200; blueFlash(); setTimeout(()=>alignFront=true,600);}
-  if(finished && !alignFront){rotZ+=rotZVel; rotZVel*=.78;}
-  vz+=4; z+=vz; if(z>0){z=0; vz*=-0.35;}
-  if(alignFront){rotZ*=0.78; if(Math.abs(rotZ)<0.5){rotZ=0; alignFront=false; setTimeout(()=>{coreDrop=true; vy=120;},250);}}
-  if(coreDrop && y>=0){y=0; vy=-400; z=-500; coreDrop=false; blueFlash(); setTimeout(showMessage,600);}
+/* shakes & transforms */
+shakePower*=0.85;hShake*=0.85;
+const sx=(Math.random()-.5)*shakePower+Math.sin(frame*0.5)*hShake;
+const sy=(Math.random()-.5)*shakePower;
+nums.forEach(n=>{n.style.transform=`translate(-50%,-50%) translate(${sx}px,${sy+y}px) translateZ(${z}px) rotateZ(${rotZ}deg)`;});
 
-  // reduced camera shake
-  const t=frame*0.1;
-  cameraShakeX=Math.sin(t)*shakePower*0.8 + Math.cos(t*1.3)*shakePower*0.6;
-  cameraShakeY=Math.cos(t*0.9)*shakePower*0.8 + Math.sin(t*1.1)*shakePower*0.6;
-  const sx=(Math.random()-.5)*shakePower+cameraShakeX; const sy=(Math.random()-.5)*shakePower+cameraShakeY;
+/* draw */
+ctx.clearRect(0,0,W,H);
+[...particles,...textParticles].forEach((p,i)=>{p.update();p.draw(ctx);if(p.alpha<0.03){particles.splice(i,1);textParticles.splice(i,1);}});
+lightRays.forEach((l,i)=>{l.update();l.draw(ctx);if(l.life<0.1)lightRays.splice(i,1);});
+outlineRays.forEach((l,i)=>{l.update();l.draw(ctx);if(l.life<0.1)outlineRays.splice(i,1);});
+petals.forEach((p,i)=>{p.update();p.draw(ctx);if(p.y>H*1.5)petals.splice(i,1);});
 
-  // apply transform
-  nums.forEach(n=>{n.style.transform=`translate(-50%,-50%) translate(${sx}px,${sy+y}px) translateZ(${z}px) rotateY(${finalRotateY}deg) rotateZ(${rotZ}deg)`;});
-  
-  // slowly rotate final 2026
-  if(finished && !showBlessEffect) finalRotateY+=2;
-
-  ctx.clearRect(0,0,W,H);
-  bgParticles.forEach(p=>{p.update(); p.draw(ctx);});
-  [...particles,...textParticles].forEach((p,i)=>{p.update();p.draw(ctx); if(p.alpha<0.03){particles.splice(i,1); textParticles.splice(i,1);}});
-  lightRays.forEach((l,i)=>{l.update();l.draw(ctx); if(l.life<0.1)lightRays.splice(i,1);});
-  outlineRays.forEach((l,i)=>{l.update();l.draw(ctx); if(l.life<0.1)outlineRays.splice(i,1);});
-
-  requestAnimationFrame(loop);
-}
+requestAnimationFrame(loop);}
 loop();
-window.addEventListener('resize',()=>{W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight;});
+window.addEventListener('resize',()=>{W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;});
 </script>
 </body>
 </html>
+
